@@ -10,9 +10,6 @@ public:
     Color(float red, float green, float blue):
     red(red), green(green), blue(blue) {};
 
-    static Color Color256(uint8_t red, uint8_t green, uint8_t blue) {
-        return Color(red / 255.0, green / 255.0, blue / 255.0);
-    }
 
     uint8_t red256()   const { return constrain(red   * 255, 0, 255); };
     uint8_t green256() const { return constrain(green * 255, 0, 255); };
@@ -25,6 +22,9 @@ public:
     Color interpolate(Color &color, float ratio) const;
 
     void print() const;
+
+    static Color RGB256(uint8_t red, uint8_t green, uint8_t blue);
+    static Color HSV(float h, float s, float v);
 
     static const Color BLACK;
     static const Color WHITE;

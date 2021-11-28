@@ -5,6 +5,28 @@
 //     else       return (b - a) * pow(1 - ratio, 2.2) + a;
 // }
 
+
+Color Color::RGB256(uint8_t red, uint8_t green, uint8_t blue) {
+    return Color(red / 255.0, green / 255.0, blue / 255.0);
+}
+
+Color Color::HSV(float h, float s, float v) {
+    h = constrain(h, 0.0, 360.0);
+    s = constrain(s, 0.0, 100.0) / 100.0;
+    v = constrain(v, 0.0, 100.0) / 100.0;
+    float C = s * v;
+    float X = C  *(1 - abs(fmod(h / 60.0, 2) - 1));
+    float m = v - C;
+    float r, g, b;
+    if      (h >= 0   && h < 60)  r = C, g = X, b = 0;
+    else if (h >= 60  && h < 120) r = X, g = C, b = 0;
+    else if (h >= 120 && h < 180) r = 0, g = C, b = X;
+    else if (h >= 180 && h < 240) r = 0, g = X, b = C;
+    else if (h >= 240 && h < 300) r = X, g = 0, b = C;
+    else                          r = C, g = 0, b = X;
+    return Color(r + m, g + m, b + m);
+}
+
 uint32_t Color::rgb256() const {
     return ((uint32_t)red256() << 16) | ((uint32_t)green256() << 8) | blue256();
 }
