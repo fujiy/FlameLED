@@ -3,17 +3,12 @@
 class Fluctuation {
 public:
 
-    bool init();
+    bool init(unsigned X_);
     const double* next();
 
     unsigned GetT() { return T; };
     unsigned GetX() { return X;};
-    bool SetX(unsigned x) {
-        if (x < 0 || XMAX < x || x % 2 != 0) return false;
-        X = x;
-        MAGNITUDE = T * x;
-        return true;
-    }
+    bool SetX(unsigned x) { return init(x); }
 
 
     void printMags();

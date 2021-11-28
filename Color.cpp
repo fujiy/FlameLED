@@ -5,6 +5,10 @@
 //     else       return (b - a) * pow(1 - ratio, 2.2) + a;
 // }
 
+uint32_t Color::rgb256() const {
+    return ((uint32_t)red256() << 16) | ((uint32_t)green256() << 8) | blue256();
+}
+
 Color Color::brightness(float ratio) const {
     Color result;
     result.red   = red   * ratio;
@@ -43,6 +47,12 @@ void Color::print() const {
     Serial.print(" ");
 }
 
-const Color Color::RED   = Color(1.0, 0.0, 0.0);
-const Color Color::GREEN = Color(0.0, 1.0, 0.0);
-const Color Color::BLUE  = Color(0.0, 0.0, 1.0);
+const Color Color::WHITE   = Color(1.0, 1.0, 1.0);
+const Color Color::BLACK   = Color(0.0, 0.0, 0.0);
+const Color Color::RED     = Color(1.0, 0.0, 0.0);
+const Color Color::MAGENTA = Color(1.0, 0.0, 1.0);
+const Color Color::ORANGE  = Color(1.0, 0.5, 0.0);
+const Color Color::YELLOW  = Color(1.0, 1.0, 0.0);
+const Color Color::GREEN   = Color(0.0, 1.0, 0.0);
+const Color Color::CYAN    = Color(0.0, 1.0, 1.0);
+const Color Color::BLUE    = Color(0.0, 0.0, 1.0);

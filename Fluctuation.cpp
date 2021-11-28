@@ -1,9 +1,12 @@
 #include "Fluctuation.h"
 
 
-bool Fluctuation::init() {
-    if (!realloc()) return false;
+bool Fluctuation::init(unsigned X_) {
+    if (X_ < 0 || XMAX < X_ || X_ % 2 != 0) return false;
+    X = X_;
+    MAGNITUDE = T * X_;
 
+    if (!realloc()) return false;
 
     double cX = X / 2.0 - 0.5;
     double cT = T / 2.0 - 0.5;
@@ -24,9 +27,14 @@ bool Fluctuation::init() {
             // angles[t*X+x] = x_;
         }
     }
-    for (unsigned x = 0; x < X; x++) computeT(0, x);
+    log_d("initialized table");
+
     t_now = 0;
+
+    for (unsigned x = 0; x < X; x++) computeT(0, x);
+    log_d("computed first Ts");
     for (unsigned t = 0; t < T; t++) next();
+    log_d("computed first Xs");
     return true;
 }
 
@@ -36,6 +44,7 @@ bool Fluctuation::realloc() {
     imags  = (double*) ps_realloc(imags,  sizeof(double) * 2 * T * X);
     values = (double*) ps_realloc(values, sizeof(double) * 2 * T * X);
     /* imags  = (double**) ps_realloc(imags, sizeof(double) * 2 * T * X); */
+    log_d("%d %d %d %d", mags, reals, imags, values);
     return mags && reals && imags && values;
 }
 
@@ -54,6 +63,8 @@ const double* Fluctuation::next() {
     variance /= X;
 
     deviation = deviation * 0.99 + sqrt(variance) * 0.01;
+
+    // Serial.println(deviation);
 
     unsigned t_div = t_now / 2;
     double ratio = (double)(t_now % T) / T;

@@ -17,6 +17,7 @@ public:
     uint8_t red256()   const { return constrain(red   * 255, 0, 255); };
     uint8_t green256() const { return constrain(green * 255, 0, 255); };
     uint8_t blue256()  const { return constrain(blue  * 255, 0, 255); };
+    uint32_t rgb256() const;
 
     Color brightness(float ratio) const;
     Color gamma(float g) const;
@@ -25,10 +26,14 @@ public:
 
     void print() const;
 
+    static const Color BLACK;
+    static const Color WHITE;
     static const Color RED;
+    static const Color MAGENTA;
+    static const Color ORANGE;
+    static const Color YELLOW;
     static const Color GREEN;
+    static const Color CYAN;
     static const Color BLUE;
-    /* static Color GREEN = Color(0.0, 1.0, 0.0); */
-    /* static Color BLUE  = Color(0.0, 0.0, 1.0); */
 };
 
