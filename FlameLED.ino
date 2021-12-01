@@ -29,37 +29,43 @@ OneButton ledNumButton = OneButton(LED_NUM_BUTTON_PIN, true, true);
 #define BLUR_C  0.8
 #define TRANSITION 0.1
 
-enum class State { Sleep, Const, Flame, SetNum };
+enum class State { Sleep, Const, Flame, SetNum, SetStart };
 
 class FlameLED {
  private:
   // Control
-  State state = State::Sleep;
+  State state = State::Const;
   unsigned long timer = 0;
   long busy_max = 0;
   long busy_sum = 0;
   unsigned fade = 0;
   // FFT
   Fluctuation image;
+  unsigned X_START = 0;
   unsigned X      = 9;
   unsigned X_POW2 = 16;
   float p_ratio[X_MAX];
   // Color
-  Color primary;
+  Color primary = Color::WHITE.brightness(0.5);
   Color secondary;
   Color brighter;
   Color darker;
   float brightness = 1.0;
-  bool  primaryOn   = false;
+  bool  primaryOn   = true;
   bool  secondaryOn = false;
 
  public:
   void init() {
 
-    EEPROM.begin(1);
+    EEPROM.begin(2);
     X = EEPROM.read(X_ADDR);
-    log_d("Read X: %d", X);
     if (X < 1 || X_MAX < X) X = 32;
+    log_d("Read X: %d", X);
+
+    X_START = EEPROM.read(X_ADDR + 1);
+    log_d("Read X Start: %d", X_START);
+    if (X_START < 0 || X_MAX < X_START) X_START = 0;
+
     leds.updateLength(X);
     X_POW2 = 2;
     while (X_POW2 < X) X_POW2 *= 2;
@@ -112,7 +118,8 @@ class FlameLED {
     case State::Const:
       if (timer % FPS == 0) {
         leds.clear();
-        for(int x = 0; x < X; x++) leds.setPixelColor(x, primary.rgb256());
+        for(int x = 0; x < X; x++)
+          leds.setPixelColor(X_START + x, primary.rgb256());
         leds.show();
       }
       break;
@@ -142,7 +149,7 @@ class FlameLED {
         ratio = pow(ratio, 2.2); // Gamma correction
 
         Color color = brighter.interpolate(darker, (ratio + p_ratio[x]) / 2.0);
-        leds.setPixelColor(x, color.rgb256());
+        leds.setPixelColor(X_START + x, color.rgb256());
 
         p_ratio[x] = ratio;
       }
@@ -151,15 +158,15 @@ class FlameLED {
     }
 
     case State::SetNum:
-
       if (ledNumButton.isLongPressed() && timer % (FPS / 5) == 0) {
         if (X > 1) X--;
       }
 
       leds.clear();
-      leds.setPixelColor(0,         Color::WHITE.rgb256());
-      leds.setPixelColor(X - 1,     Color::WHITE.rgb256());
-      leds.setPixelColor(timer % X, Color::ORANGE.rgb256());
+      leds.setPixelColor(X_START, Color::WHITE.rgb256());
+      if (timer % (FPS / 5))
+        leds.setPixelColor(X_START + X - 1,Color::WHITE.rgb256());
+      leds.setPixelColor(X_START + timer % X, Color::ORANGE.rgb256());
 
       leds.show();
 
@@ -168,12 +175,36 @@ class FlameLED {
         Serial.println(X);
         EEPROM.write(X_ADDR, X);
         EEPROM.commit();
-        leds.updateLength(X);
+        leds.updateLength(X_START + X);
 
         X_POW2 = 2;
         while (X_POW2 < X) X_POW2 *= 2;
         Serial.println(X_POW2);
         image.SetX(X_POW2);
+        timer = 0;
+        state = State::SetStart;
+      }
+      break;
+
+    case State::SetStart:
+      if (ledNumButton.isLongPressed() && timer % (FPS / 5) == 0) {
+        if (X_START > 0) X_START--;
+      }
+
+      leds.clear();
+      if (timer % (FPS / 5))
+        leds.setPixelColor(X_START, Color::WHITE.rgb256());
+      leds.setPixelColor(X_START + X - 1, Color::WHITE.rgb256());
+      leds.setPixelColor(X_START + timer % X, Color::ORANGE.rgb256());
+
+      leds.show();
+
+      if (timer > FPS * 5) {
+        Serial.print("Set LED Start Position: ");
+        Serial.println(X_START);
+        EEPROM.write(X_ADDR + 1, X_START);
+        EEPROM.commit();
+        leds.updateLength(X_START + X);
         state = State::Flame;
       }
       break;
@@ -200,13 +231,17 @@ class FlameLED {
 
   void onClick() {
     Serial.println("clicked");
-    if (state != State::SetNum) {
+    if (state == State::SetNum) {
+      if (X < X_MAX) X++;
+      leds.updateLength(X_START + X);
+    }
+    else if (state == State::SetStart) {
+      X_START++;
+      leds.updateLength(X_START + X);
+    }
+    else {
       state = State::SetNum;
       timer = 0;
-    }
-    else if (X < X_MAX) {
-      X++;
-      leds.updateLength(X);
     }
   }
 };
@@ -220,10 +255,10 @@ struct DEV_Primary: Service::LightBulb {
   SpanCharacteristic *V;
 
  DEV_Primary(FlameLED &master): Service::LightBulb(), master(master) {
-    power = new Characteristic::On();
+    power = new Characteristic::On(true);
     H = new Characteristic::Hue(0);
     S = new Characteristic::Saturation(0);
-    V = new Characteristic::Brightness(100);
+    V = new Characteristic::Brightness(50);
   }
 
   boolean update() {
@@ -232,7 +267,7 @@ struct DEV_Primary: Service::LightBulb {
     float v = V->getNewVal<float>();
     bool  p = power->getNewVal();
 
-    master.setPrimary(p, v / 100, Color::HSV(h, s, v));
+    master.setPrimary(p, v / 100, Color::HSV(h, pow(s/100, 1/2.2) * 100, v));
 
     return true;
   }
@@ -250,7 +285,7 @@ struct DEV_Secondary: Service::LightBulb {
     power = new Characteristic::On();
     H = new Characteristic::Hue(0);
     S = new Characteristic::Saturation(0);
-    V = new Characteristic::Brightness(50);
+    V = new Characteristic::Brightness(0);
   }
 
   boolean update() {
@@ -259,7 +294,7 @@ struct DEV_Secondary: Service::LightBulb {
     float v   = V->getNewVal<float>();
     boolean p = power->getNewVal();
 
-    master.setSecondary(p, Color::HSV(h, s, v));
+    master.setSecondary(p, Color::HSV(h, pow(s/100, 1/2.2) * 100, v));
 
     return true;
   }
@@ -288,6 +323,8 @@ void setup() {
 
   ledNumButton.attachClick(onClick);
 
+  homeSpan.enableOTA();
+  homeSpan.setSketchVersion("0.1.0");
   homeSpan.setControlPin(HOMESPAN_BUTTON_PIN);
   homeSpan.setStatusPin(HOMESPAN_LED_PIN);
   homeSpan.begin(Category::Bridges, "Flame LED Bridge");
