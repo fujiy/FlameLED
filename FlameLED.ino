@@ -22,6 +22,7 @@ OneButton ledNumButton = OneButton(LED_NUM_BUTTON_PIN, true, true);
 
 
 #define FPS 50
+#define FADE 50
 #define X_MAX 128
 #define X_ADDR 0
 
@@ -35,6 +36,7 @@ class FlameLED {
  private:
   // Control
   State state = State::Const;
+  State next_state = State::Const;
   unsigned long timer = 0;
   long busy_max = 0;
   long busy_sum = 0;
@@ -66,7 +68,7 @@ class FlameLED {
     log_d("Read X Start: %d", X_START);
     if (X_START < 0 || X_MAX < X_START) X_START = 0;
 
-    leds.updateLength(X);
+    leds.updateLength(X_START + X);
     X_POW2 = 2;
     while (X_POW2 < X) X_POW2 *= 2;
 
@@ -76,7 +78,7 @@ class FlameLED {
   }
 
   void setPrimary(bool on, float brightness, Color color) {
-    primary  = color;
+    primary = color;
     this->brightness = brightness;
     primaryOn = on;
     updateState();
@@ -88,25 +90,70 @@ class FlameLED {
     updateState();
   }
   void updateState() {
-    State new_state = State::Sleep;
-    if      (primaryOn && secondaryOn) new_state = State::Flame;
-    else if (primaryOn)                new_state = State::Const;
+    if      (primaryOn && secondaryOn) next_state = State::Flame;
+    else if (primaryOn)                next_state = State::Const;
+    else                               next_state = State::Sleep;
 
-    if (state != State::Sleep && new_state == State::Sleep) fade = FPS;
-    else state = new_state;
+    if (state != next_state) timer = 0;
+
+    fade = 0;
+
+    if (state == State::Sleep) {
+      brighter = primary.brightness(0);
+      darker = secondary.brightness(0);
+    }
+
+    if (state == State::Sleep && next_state == State::Flame) {
+      state = next_state;
+      fade = FADE;
+    }
+    else if (state == State::Flame && next_state == State::Sleep) {
+      fade = FADE * 4;
+    }
+    else if (state == State::Flame && next_state == State::Const) {
+      secondary = primary;
+      fade = FADE;
+    }
+    else if (state == State::Const && next_state == State::Flame) {
+      state = next_state;
+      fade = FADE;
+    }
+    else if (state == State::Const && next_state == State::Sleep) {
+      fade = FADE;
+    }
+    else if (next_state == State::Const) {
+      secondary = primary;
+      state = next_state;
+      fade = FADE;
+    }
+    else state = next_state;
   }
 
   void loop() {
     long start = micros();
 
-    brighter = primary.interpolate(brighter, TRANSITION);
-    darker   = secondary.brightness(brightness)
-                  .interpolate(darker, TRANSITION);
+    float fade_brightness = 1.0;
+
 
     if (fade > 0) {
+      if (next_state == State::Sleep) {
+        if (fade >= FADE * 2)
+          fade_brightness = (float)(fade - FADE * 2) / (FADE * 2);
+        else fade_brightness = 0.0;
+      }
+      /* else if (state == State::Sleep && next_state == State::Flame) { */
+      /*   if (fade >= FADE) fade_brightness = 1.0 - (float)(fade - FADE) / FADE; */
+      /*   else              fade_brightness = 1.0; */
+      /* } */
+
       fade--;
-      if (fade == 0) state = State::Sleep;
+      if (fade == 0) state = next_state;
     }
+
+    brighter = primary.brightness(fade_brightness)
+                      .interpolate(brighter, TRANSITION);
+    darker   = secondary.brightness(brightness * fade_brightness)
+                        .interpolate(darker, TRANSITION);
 
     switch (state) {
     case State::Sleep:
@@ -116,10 +163,10 @@ class FlameLED {
       }
       break;
     case State::Const:
-      if (timer % FPS == 0) {
+      if (timer % FPS == 0 || fade > 0) {
         leds.clear();
         for(int x = 0; x < X; x++)
-          leds.setPixelColor(X_START + x, primary.rgb256());
+          leds.setPixelColor(X_START + x, brighter.rgb256());
         leds.show();
       }
       break;
